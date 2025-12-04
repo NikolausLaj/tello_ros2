@@ -19,8 +19,10 @@ class TelloBridgeNode(Node):
         self.velocity = [0.0, 0.0, 0.0]
         self.position = [0.0, 0.0, 0.0]
         self.last_time = self.get_clock().now()
+        self.q, self.ax, self.ay, self.az = 0.0, 0.0, 0.0, 0.0
 
         self.declare_parameter('imu_rate', 20.0)
+        self.declare_parameter('pose_rate', 200.0)
         self.declare_parameter('tf_drone', 'drone')
         self.declare_parameter('tf_base', 'base_link')
         self.declare_parameter('tf_world', 'odom')
@@ -31,12 +33,17 @@ class TelloBridgeNode(Node):
         self.tf_base = self.get_parameter('tf_base').get_parameter_value().string_value
         self.tf_world = self.get_parameter('tf_world').get_parameter_value().string_value
         imu_rate = self.get_parameter('imu_rate').get_parameter_value().double_value
+        pose_rate = self.get_parameter('pose_rate').get_parameter_value().double_value
 
         self.get_logger().info('TelloBridgeNode has been started.')
         self._tello = djitellopy.Tello()
         self._connectToTello()
 
+        # Timers
         self.imu_request_timer = self.create_timer(1.0/imu_rate, self.attitudeCallback)
+        self.pose_request_timer = self.create_timer(1.0/imu_rate, self.poseCallback)
+
+        # Publishers
         self.imu_publisher = self.create_publisher(Imu, 'tello/imu', 10)
         self.odom_publisher = self.create_publisher(Odometry, 'tello/odom', 10)
 
@@ -48,17 +55,10 @@ class TelloBridgeNode(Node):
         self.get_logger().info('Connected to Tello drone.')
 
 
-    def attitudeCallback(self):
-        # Time step
+    def poseCallback(self):
         current_time = self.get_clock().now()
         dt = (current_time - self.last_time).nanoseconds * 1e-9
         self.last_time = current_time
-
-        # Orientation
-        roll = -self._tello.get_roll() * math.pi / 180.0
-        pitch = self._tello.get_pitch() * math.pi / 180.0
-        yaw = self._tello.get_yaw() * math.pi / 180.0
-        q_wxyz = euler2quat(roll, pitch, yaw, axes='sxyz')
 
         # Acceleration (gravity compensation)
         ax = self._tello.get_acceleration_x() / 100.0
@@ -81,26 +81,33 @@ class TelloBridgeNode(Node):
         except Exception:
             pass
 
-        self.computeIMU(q_wxyz, ax, ay, az)
-        self.computeOdometry(q_wxyz)
-        self.broadcastTF(q_wxyz)
+    def attitudeCallback(self):
+        # Orientation
+        roll = -self._tello.get_roll() * math.pi / 180.0
+        pitch = self._tello.get_pitch() * math.pi / 180.0
+        yaw = self._tello.get_yaw() * math.pi / 180.0
+        self.q = euler2quat(roll, pitch, yaw, axes='sxyz')
+        print(self.q)
+        self.computeIMU()
+        self.computeOdometry()
+        self.broadcastTF()
 
-
-    def computeIMU(self, q_wxyz, ax, ay, az):
+    def computeIMU(self):
         msg = Imu()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.tf_drone
-        msg.linear_acceleration.x = ax
-        msg.linear_acceleration.y = ay
-        msg.linear_acceleration.z = az + 9.81  # publish raw accel (add gravity back for IMU msg)
+        msg.linear_acceleration.x = self.ax
+        msg.linear_acceleration.y = self.ay
+        msg.linear_acceleration.z = self.az + 9.81  # publish raw accel (add gravity back for IMU msg)
+
         # Angular velocity not available, set to zero
         msg.angular_velocity.x = 0.0
         msg.angular_velocity.y = 0.0
         msg.angular_velocity.z = 0.0
-        msg.orientation.x = q_wxyz[1]
-        msg.orientation.y = q_wxyz[2]
-        msg.orientation.z = q_wxyz[3]
-        msg.orientation.w = q_wxyz[0]
+        msg.orientation.x = self.q[1]
+        msg.orientation.y = self.q[2]
+        msg.orientation.z = self.q[3]
+        msg.orientation.w = self.q[0]
 
         self.imu_publisher.publish(msg)
 
@@ -110,7 +117,7 @@ class TelloBridgeNode(Node):
                  msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w))
 
 
-    def computeOdometry(self, q_wxyz):
+    def computeOdometry(self):
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.header.frame_id = self.tf_world
@@ -119,10 +126,10 @@ class TelloBridgeNode(Node):
         odom_msg.pose.pose.position.x = self.position[0]
         odom_msg.pose.pose.position.y = self.position[1]
         odom_msg.pose.pose.position.z = self.position[2]
-        odom_msg.pose.pose.orientation.x = q_wxyz[1]
-        odom_msg.pose.pose.orientation.y = q_wxyz[2]
-        odom_msg.pose.pose.orientation.z = q_wxyz[3]
-        odom_msg.pose.pose.orientation.w = q_wxyz[0]
+        odom_msg.pose.pose.orientation.x = self.q[1]
+        odom_msg.pose.pose.orientation.y = self.q[2]
+        odom_msg.pose.pose.orientation.z = self.q[3]
+        odom_msg.pose.pose.orientation.w = self.q[0]
         # Use estimated velocity
         odom_msg.twist.twist.linear.x = self.velocity[0]
         odom_msg.twist.twist.linear.y = self.velocity[1]
@@ -138,7 +145,7 @@ class TelloBridgeNode(Node):
                  odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w))
 
 
-    def broadcastTF(self, q_wxyz):
+    def broadcastTF(self):
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.tf_world
@@ -146,10 +153,10 @@ class TelloBridgeNode(Node):
         t.transform.translation.x = self.position[0]
         t.transform.translation.y = self.position[1]
         t.transform.translation.z = self.position[2]
-        t.transform.rotation.x = q_wxyz[1]
-        t.transform.rotation.y = q_wxyz[2]
-        t.transform.rotation.z = q_wxyz[3]
-        t.transform.rotation.w = q_wxyz[0]
+        t.transform.rotation.x = self.q[1]
+        t.transform.rotation.y = self.q[2]
+        t.transform.rotation.z = self.q[3]
+        t.transform.rotation.w = self.q[0]
         self.tf_broadcaster.sendTransform(t)
 
 
