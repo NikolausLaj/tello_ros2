@@ -83,8 +83,8 @@ class TelloBridgeNode(Node):
         self.image_publisher = self.create_publisher(Image, 'tello/image_raw', 10)
 
         # Subscribers
-        self.create_subscription(Empty, 'takeoff', self.subTakeoff, 1)
-        self.create_subscription(Empty, 'land', self.subLand, 1)
+        self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
+        self.create_subscription(Empty, 'land', self.landCallback, 1)
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
@@ -228,13 +228,13 @@ class TelloBridgeNode(Node):
 
 # --------------------------------------------------------------------------------------------------
 
-    def subTakeoff(self, msg):
+    def takeoffCallback(self, msg):
         self.get_logger().info('Takeoff command received via ROS topic.')
         self.tello.takeoff()
 
 # --------------------------------------------------------------------------------------------------
 
-    def subLand(self, msg):
+    def landCallback(self, msg):
         self.get_logger().info('Land command received via ROS topic.')
         self.tello.land()
 
@@ -289,22 +289,10 @@ class TelloBridgeNode(Node):
 
 # --------------------------------------------------------------------------------------------------
 
-    def testFlight(self):
-        self.get_logger().info('Starting test flight: takeoff, hover 20s, land.')
-        self.tello.takeoff()
-        # Schedule landing after 20 seconds using a ROS timer
-        self.flight_timer = self.create_timer(20.0, self._land_and_log)
-
-    def _land_and_log(self):
-        self.flight_timer.cancel()
-        self.tello.land()
-        self.get_logger().info('Test flight completed.')
-
 def main():
     rclpy.init()
     node = TelloBridgeNode()
     try:
-        # node.testFlight()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
