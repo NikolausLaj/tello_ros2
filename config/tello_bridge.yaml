@@ -1,0 +1,15 @@
+tello_bridge_node:
+  ros__parameters:
+    imu_rate: 20.0
+    pose_rate: 20.0
+    status_rate: 10.0
+    tf_drone: "drone"
+    tf_base: "base_link"
+    tf_odom: "odom"
+    tf_map: "map"
+    debug: false
+    alpha: 0.925
+    buffer_length: 11
+    average_time: 3.0
+    average_rate: 20.0
+    filter_barometer: True
