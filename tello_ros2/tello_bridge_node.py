@@ -15,8 +15,6 @@ import tf2_ros
 import statistics
 from cv_bridge import CvBridge
 
-# from tello_ros2.msg import TelloStatus
-
 # --------------------------------------------------------------------------------------------------
 
 class TelloBridgeNode(Node):
@@ -60,14 +58,13 @@ class TelloBridgeNode(Node):
         self.average_rate = self.get_parameter('average_rate').get_parameter_value().double_value
         self.filter_barometer = self.get_parameter('filter_barometer').get_parameter_value().bool_value
 
-        self.get_logger().info('TelloBridgeNode has been started.')
+        self.get_logger().info('TelloBridgeNode initializing...')
         self.tello = djitellopy.Tello()
         self.cv_bridge = CvBridge()
 
         self._connectToTello()
         self._averageHomeAltitude()
-        self.tello.streamon()
-
+        self._startVideoStream()
 
         # Timers
         self.imu_request_timer = self.create_timer(1.0/imu_rate, self.attitudeCallback)
@@ -127,10 +124,21 @@ class TelloBridgeNode(Node):
             return 0.0
 
 # --------------------------------------------------------------------------------------------------
+    def _startVideoStream(self):
+        try:
+            self.tello.streamon()
+            self.get_logger().info('Tello video stream started.')
+        except Exception as e:
+            self.get_logger().warning(f'Error starting video stream: {e}')
+
+# --------------------------------------------------------------------------------------------------
 
     def _connectToTello(self):
-        self.tello.connect()
-        self.get_logger().info('Connected to Tello drone.')
+        try:
+            self.tello.connect()
+            self.get_logger().info('Connected to Tello drone.')
+        except Exception as e:
+            self.get_logger().warning(f'Error connecting to Tello drone: {e}')
 
 # --------------------------------------------------------------------------------------------------
 
