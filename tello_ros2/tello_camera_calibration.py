@@ -76,15 +76,15 @@ def perform_calibration(
 
     # Save calibration data to YAML
     calibration_data = {
-        'camera_parameters':{
+        'rect_image':{
             'ros__parameters':{
                 'camera_matrix': {
                     'rows': 3,
                     'cols': 3,
                     'data': [
-                        float(camera_matrix[0][0]), 0, float(camera_matrix[0][2]),
-                        0, float(camera_matrix[1][1]), float(camera_matrix[1][2]),
-                        0, 0, 1
+                        float(camera_matrix[0][0]), 0.0, float(camera_matrix[0][2]),
+                        0.0, float(camera_matrix[1][1]), float(camera_matrix[1][2]),
+                        0.0, 0.0, 1.0
                     ]
                 },
             'distortion_coefficients': {

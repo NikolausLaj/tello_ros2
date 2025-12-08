@@ -1,17 +1,17 @@
-camera_parameters:
+tello_rect_image_node:
   ros__parameters:
     camera_matrix:
       cols: 3
       data:
       - 914.361813321524
-      - 0
+      - 0.0
       - 467.01160766470457
-      - 0
+      - 0.0
       - 913.3059607363589
       - 349.29006094091017
-      - 0
-      - 0
-      - 1
+      - 0.0
+      - 0.0
+      - 1.0
       rows: 3
     distortion_coefficients:
       cols: 5
