@@ -45,14 +45,18 @@ RectImage::RectImage()
   image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
     "/tello/image_raw", 10, std::bind(&RectImage::imageCallback, this, _1));
 
-  image_pub_ = this->create_publisher<sensor_msgs::msg::Image>("tello/image_rect", 10);
+  image_pub_ = this->create_publisher<sensor_msgs::msg::Image>("tello/image_undistorted", 10);
 
 }
 
 void RectImage::imageCallback(const sensor_msgs::msg::Image & msg) const
 {
-  RCLCPP_INFO(this->get_logger(), "Undistort Image Here!!! :)"); 
-  image_pub_->publish(msg);
+  RCLCPP_INFO(this->get_logger(), "Undistort Image Here!!! :)");
+  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, msg.encoding);
+  cv::Mat undistorted_image;
+  cv::undistort(cv_ptr->image, undistorted_image, K_, D_);
+  cv_ptr->image = undistorted_image;
+  image_pub_->publish(*cv_ptr->toImageMsg());
 }
 
 int main(int argc, char * argv[])

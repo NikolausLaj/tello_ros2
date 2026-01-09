@@ -1,8 +1,11 @@
 #ifndef TELLO_RECT_IMAGES_HPP_
 #define TELLO_RECT_IMAGES_HPP_
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
+#include <cv_bridge/cv_bridge.h>
+
 #include "rclcpp/rclcpp.hpp"
-#include "opencv2/core.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
 class RectImage : public rclcpp::Node

@@ -78,6 +78,7 @@ class TelloBridgeNode(Node):
         self.rel_alt_publisher = self.create_publisher(Range, 'tello/relative_altitude', 10)
         # self.status_publisher = self.create_publisher(TelloStatus, 'tello/status', 10)
         self.image_publisher = self.create_publisher(Image, 'tello/image_raw', 10)
+        # self.image_publisher = self.create_publisher(Image, 'tello/image_raw_gray', 10)
 
         # Subscribers
         self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
@@ -215,10 +216,15 @@ class TelloBridgeNode(Node):
 
     def imageCallback(self):
         frame = self.tello.get_frame_read()
-        msg = self.cv_bridge.cv2_to_imgmsg(frame.frame, encoding="rgb8")
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self.tf_drone
-        self.image_publisher.publish(msg)
+        image_rgb = self.cv_bridge.cv2_to_imgmsg(frame.frame, encoding="rgb8")
+        image_rgb.header.stamp = self.get_clock().now().to_msg()
+        image_rgb.header.frame_id = self.tf_drone
+        self.image_publisher.publish(image_rgb)
+
+        # image_gray = self.cv_bridge.cv2_to_imgmsg(frame.frame, encoding="mono8")
+        # image_gray.header.stamp = self.get_clock().now().to_msg()
+        # image_gray.header.frame_id = self.tf_drone
+        # self.image_publisher.publish(image_gray)
 
 # --------------------------------------------------------------------------------------------------
 
@@ -307,6 +313,7 @@ def main():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+        
 # --------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
