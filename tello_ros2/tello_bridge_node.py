@@ -5,7 +5,7 @@ from rclpy.parameter import Parameter
 from std_msgs.msg import Empty
 from sensor_msgs.msg import Imu, Range, Image
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, Twist
 
 import djitellopy
 import time
@@ -83,6 +83,7 @@ class TelloBridgeNode(Node):
         # Subscribers
         self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
         self.create_subscription(Empty, 'land', self.landCallback, 1)
+        self.create_subscription(Twist, '/tello/vertical_cmd_vel', self.cmdVelCallback, 1)
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
@@ -251,6 +252,15 @@ class TelloBridgeNode(Node):
     def landCallback(self, msg):
         self.get_logger().info('Land command received via ROS topic.')
         self.tello.land()
+
+# --------------------------------------------------------------------------------------------------
+
+    def cmdVelCallback(self, msg):
+        vz = msg.linear.z*100 # to convert to cm/s
+        logger_msg = f'Vertical velocity command received via ROS topic: vz={vz} cm/s'
+        self.get_logger().info(logger_msg)
+        self.tello.send_rc_control(0, 0, int(vz), 0)
+
 
 # --------------------------------------------------------------------------------------------------
 

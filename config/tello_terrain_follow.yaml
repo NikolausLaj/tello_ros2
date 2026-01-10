@@ -1,7 +1,7 @@
 tello_terrain_follow_node:
   ros__parameters:
     target_distance: 1.0
-    kp: 0.5
+    kp: 0.7
     ki: 0.1
     kd: 0.05
     max_vel: 1.0

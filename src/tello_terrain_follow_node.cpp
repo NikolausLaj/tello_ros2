@@ -26,11 +26,11 @@ TerrainFollow::TerrainFollow() : Node("tello_terrain_follow_node")
 
     // Declare Subscribers
     _rel_alt_sub = this->create_subscription<sensor_msgs::msg::Range>(
-        "tello/relative_altitude", 10, std::bind(&TerrainFollow::relAltitudeCallback, this, _1));
+        _rel_alt_topic, 10, std::bind(&TerrainFollow::relAltitudeCallback, this, _1));
         
     // Declare Publishers
     _cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>(
-        "/tello/cmd_vel", 10);
+        _vert_cmd_vel_topic, 10);
     
     RCLCPP_INFO(this->get_logger(), "Terrain Follow Node Initalized and Running!");
     RCLCPP_INFO(this->get_logger(), "Parameters\n: Tagert Distance: %f\n: Kp: %f\n: Ki: %f\n: Kd: %f\n: Min Vel: %f\n: Max Vel: %f\n: Rel Alt Topic: %s\n: Cmd Vel Topic: %s",
@@ -42,6 +42,21 @@ void TerrainFollow::relAltitudeCallback(const sensor_msgs::msg::Range & msg) con
 {
     // implement PI/PID Controller here to maintain a certain alitude above ground
     std::cout << "Current Distance: "<< msg.range << std::endl;
+    geometry_msgs::msg::Twist cmd_vel_msg;
+    double error = _target_alt - msg.range;
+    double control_signal = _kp * error; // + _ki * integral + _kd * derivative;
+
+    if (control_signal > _max_vel)
+    {
+        control_signal = _max_vel;
+    }
+    else if (control_signal < _min_vel)
+    {
+        control_signal = _min_vel;
+    }
+
+    cmd_vel_msg.linear.z = control_signal;
+    _cmd_vel_pub->publish(cmd_vel_msg);
 }
 
 
