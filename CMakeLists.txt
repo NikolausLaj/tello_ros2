@@ -52,6 +52,11 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  tello_ros2/teleop_twist_rpyt_keyboard.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )

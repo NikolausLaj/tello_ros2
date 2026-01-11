@@ -30,7 +30,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'tello_bridge_node = tello_ros2.tello_bridge_node:main'
+            'tello_bridge_node = tello_ros2.tello_bridge_node:main',
+            'teleop_twist_rpyt_keyboard = tello_ros2.teleop_twist_rpyt_keyboard:main'
         ],
     },
 )

@@ -83,7 +83,8 @@ class TelloBridgeNode(Node):
         # Subscribers
         self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
         self.create_subscription(Empty, 'land', self.landCallback, 1)
-        self.create_subscription(Twist, '/tello/vertical_cmd_vel', self.cmdVelCallback, 1)
+        self.create_subscription(Twist, '/tello/vertical_cmd_vel', self.terrainFollowCallback, 1)
+        self.create_subscription(Twist, '/cmd_vel', self.cmdVelCallback, 1)
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
@@ -255,12 +256,23 @@ class TelloBridgeNode(Node):
 
 # --------------------------------------------------------------------------------------------------
 
-    def cmdVelCallback(self, msg):
+    def terrainFollowCallback(self, msg):
         vz = msg.linear.z*100 # to convert to cm/s
-        logger_msg = f'Vertical velocity command received via ROS topic: vz={vz} cm/s'
+        logger_msg = f'Vertical velocity command received via Terrain Follow Node: vz={vz} cm/s'
         self.get_logger().info(logger_msg)
         self.tello.send_rc_control(0, 0, int(vz), 0)
 
+# --------------------------------------------------------------------------------------------------
+
+    def cmdVelCallback(self, msg):
+        vx = msg.linear.x
+        vy = msg.linear.y
+        vz = msg.linear.z
+        # va = msg.angular
+
+        logger_msg = f'Velocity command received via ROS Teleop. node: vx={vx} m/s, vy={vy} m/s, vz={vz} m/s, va={vx} rad/s'
+        self.get_logger().info(logger_msg)
+        self.tello.send_rc_control(int(vy*100), int(vx*100), int(-vz*100),0)#, int(va*100))
 
 # --------------------------------------------------------------------------------------------------
 
