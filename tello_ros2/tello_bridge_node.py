@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, Bool
 from sensor_msgs.msg import Imu, Range, Image
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped, Twist
@@ -13,6 +13,7 @@ import math
 from transforms3d.euler import euler2quat
 import tf2_ros
 import statistics
+import subprocess
 from cv_bridge import CvBridge
 
 # --------------------------------------------------------------------------------------------------
@@ -27,36 +28,9 @@ class TelloBridgeNode(Node):
         self._old_abs_alt = 0.0
         self._abs_alt_median = []
         self._q = 0.0
+        self._teleop_active = False
 
-        self.declare_parameter('imu_rate', 20.0)
-        self.declare_parameter('pose_rate', 20.0)
-        # self.declare_parameter('status_rate', 1.0)
-        self.declare_parameter('image_rate', 30.0)
-        self.declare_parameter('tf_drone', 'drone')
-        self.declare_parameter('tf_base', 'base_link')
-        self.declare_parameter('tf_odom', 'odom')
-        self.declare_parameter('tf_map', 'map')
-        self.declare_parameter('debug', False)
-        self.declare_parameter('alpha', 0.925)
-        self.declare_parameter('buffer_length', 5)
-        self.declare_parameter('average_time', 5.0)
-        self.declare_parameter('average_rate', 20.0)
-        self.declare_parameter('filter_barometer', False)
-
-        imu_rate = self.get_parameter('imu_rate').get_parameter_value().double_value
-        pose_rate = self.get_parameter('pose_rate').get_parameter_value().double_value
-        # status_rate = self.get_parameter('status_rate').get_parameter_value().double_value
-        image_rate = self.get_parameter('image_rate').get_parameter_value().double_value
-        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
-        self.tf_drone = self.get_parameter('tf_drone').get_parameter_value().string_value
-        self.tf_base = self.get_parameter('tf_base').get_parameter_value().string_value
-        self.tf_odom = self.get_parameter('tf_odom').get_parameter_value().string_value
-        self.tf_map = self.get_parameter('tf_map').get_parameter_value().string_value
-        self.alpha = self.get_parameter('alpha').get_parameter_value().double_value
-        self.buffer_length = self.get_parameter('buffer_length').get_parameter_value().integer_value
-        self.average_time = self.get_parameter('average_time').get_parameter_value().double_value
-        self.average_rate = self.get_parameter('average_rate').get_parameter_value().double_value
-        self.filter_barometer = self.get_parameter('filter_barometer').get_parameter_value().bool_value
+        self._initParameters()
 
         self.get_logger().info('TelloBridgeNode initializing...')
         self.tello = djitellopy.Tello()
@@ -66,25 +40,9 @@ class TelloBridgeNode(Node):
         self._averageHomeAltitude()
         self._startVideoStream()
 
-        # Timers
-        self.imu_request_timer = self.create_timer(1.0/imu_rate, self.attitudeCallback)
-        self.pose_request_timer = self.create_timer(1.0/pose_rate, self.altitudeCallback)
-        # self.status_request_timer = self.create_timer(1.0/status_rate, self.statusCallback)
-        self.image_request_timer = self.create_timer(1.0/image_rate, self.imageCallback)
-
-        # Publishers
-        self.imu_publisher = self.create_publisher(Imu, 'tello/imu', 10)
-        self.odom_publisher = self.create_publisher(Odometry, 'tello/odom', 10)
-        self.rel_alt_publisher = self.create_publisher(Range, 'tello/relative_altitude', 10)
-        # self.status_publisher = self.create_publisher(TelloStatus, 'tello/status', 10)
-        self.image_publisher = self.create_publisher(Image, 'tello/image_raw', 10)
-        # self.image_publisher = self.create_publisher(Image, 'tello/image_raw_gray', 10)
-
-        # Subscribers
-        self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
-        self.create_subscription(Empty, 'land', self.landCallback, 1)
-        self.create_subscription(Twist, '/tello/vertical_cmd_vel', self.terrainFollowCallback, 1)
-        self.create_subscription(Twist, '/cmd_vel', self.cmdVelCallback, 1)
+        self._initTimers()
+        self._initSubscribers()
+        self._initPublishers()
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
@@ -106,6 +64,69 @@ class TelloBridgeNode(Node):
         self.static_tf_broadcaster.sendTransform([static_t])
 
         self.get_logger().info('TelloBridge Node Running...')
+
+# --------------------------------------------------------------------------------------------------
+
+    def _initParameters(self):
+        self.declare_parameter('imu_rate', 20.0)
+        self.declare_parameter('pose_rate', 20.0)
+        # self.declare_parameter('status_rate', 1.0)
+        self.declare_parameter('image_rate', 30.0)
+        self.declare_parameter('tf_drone', 'drone')
+        self.declare_parameter('tf_base', 'base_link')
+        self.declare_parameter('tf_odom', 'odom')
+        self.declare_parameter('tf_map', 'map')
+        self.declare_parameter('debug', False)
+        self.declare_parameter('alpha', 0.925)
+        self.declare_parameter('buffer_length', 5)
+        self.declare_parameter('average_time', 5.0)
+        self.declare_parameter('average_rate', 20.0)
+        self.declare_parameter('filter_barometer', False)
+        self.declare_parameter('tello_wifi', "")
+
+        self.imu_rate = self.get_parameter('imu_rate').get_parameter_value().double_value
+        self.pose_rate = self.get_parameter('pose_rate').get_parameter_value().double_value
+        # status_rate = self.get_parameter('status_rate').get_parameter_value().double_value
+        self.image_rate = self.get_parameter('image_rate').get_parameter_value().double_value
+        self.debug = self.get_parameter('debug').get_parameter_value().bool_value
+        self.tf_drone = self.get_parameter('tf_drone').get_parameter_value().string_value
+        self.tf_base = self.get_parameter('tf_base').get_parameter_value().string_value
+        self.tf_odom = self.get_parameter('tf_odom').get_parameter_value().string_value
+        self.tf_map = self.get_parameter('tf_map').get_parameter_value().string_value
+        self.alpha = self.get_parameter('alpha').get_parameter_value().double_value
+        self.buffer_length = self.get_parameter('buffer_length').get_parameter_value().integer_value
+        self.average_time = self.get_parameter('average_time').get_parameter_value().double_value
+        self.average_rate = self.get_parameter('average_rate').get_parameter_value().double_value
+        self.filter_barometer = self.get_parameter('filter_barometer').get_parameter_value().bool_value
+        self.tello_wifi = self.get_parameter('tello_wifi').get_parameter_value().string_value
+
+# --------------------------------------------------------------------------------------------------
+
+    def _initTimers(self):
+        self.imu_request_timer = self.create_timer(1.0/self.imu_rate, self.attitudeCallback)
+        self.pose_request_timer = self.create_timer(1.0/self.pose_rate, self.altitudeCallback)
+        # self.status_request_timer = self.create_timer(1.0/status_rate, self.statusCallback)
+        self.image_request_timer = self.create_timer(1.0/self.image_rate, self.imageCallback)
+
+
+# --------------------------------------------------------------------------------------------------
+
+    def _initSubscribers(self):
+        self.create_subscription(Empty, 'takeoff', self.takeoffCallback, 1)
+        self.create_subscription(Empty, 'land', self.landCallback, 1)
+        self.create_subscription(Twist, '/terrain_follow/cmd_vel', self.terrainFollowCallback, 1)
+        self.create_subscription(Twist, '/teleop/cmd_vel', self.cmdVelCallback, 1)
+        self.create_subscription(Bool, '/teleop/active', self.teleopActiveCallback, 1)
+
+# --------------------------------------------------------------------------------------------------
+
+    def _initPublishers(self):
+        self.imu_publisher = self.create_publisher(Imu, 'tello/imu', 10)
+        self.odom_publisher = self.create_publisher(Odometry, 'tello/odom', 10)
+        self.rel_alt_publisher = self.create_publisher(Range, 'tello/relative_altitude', 10)
+        # self.status_publisher = self.create_publisher(TelloStatus, 'tello/status', 10)
+        self.image_publisher = self.create_publisher(Image, 'tello/image_raw', 10)
+        # self.image_publisher = self.create_publisher(Image, 'tello/image_raw_gray', 10)
 
 # --------------------------------------------------------------------------------------------------
 
@@ -138,10 +159,53 @@ class TelloBridgeNode(Node):
 
     def _connectToTello(self):
         try:
-            self.tello.connect()
-            self.get_logger().info('Connected to Tello drone.')
+            self.get_logger().info(f"Connecting to {self.tello_wifi}...")
+            if self._checkWifiAvailability():
+                self.get_logger().info("Found Tellos Wifi")
+
+                result = subprocess.run(["nmcli", "device", "wifi", "connect", self.tello_wifi],
+                                check=True,
+                                capture_output=True,
+                                text=True
+                                )
+            
+                self.get_logger().info(f"Wifi Connection establish {result.stdout}")
+
+                self.tello.connect()
+                self.get_logger().info('Connected!')
+            else:
+               raise Exception("Wifi Not Found")
+            
         except Exception as e:
-            self.get_logger().warning(f'Error connecting to Tello drone: {e}')
+            # TODO how to termianlt node if wifi can not be connected
+            self.get_logger().error(f'Error connecting to Tello drone: {e}')
+
+# --------------------------------------------------------------------------------------------------
+
+    def _checkWifiAvailability(self) -> bool:
+        wifi_available = False
+        cnt = 180
+
+        while wifi_available == False:
+            result = subprocess.run(
+                ["nmcli", "-f", "SSID", "dev", "wifi"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            ssids = result.stdout.splitlines()[1:]
+            ssid_list = [ssid.strip() for ssid in ssids]
+            print(ssid_list)
+            if self.tello_wifi in ssid_list:
+                wifi_available = True
+            
+            cnt = cnt -1
+            if cnt == 0:
+                return False
+    
+            time.sleep(0.5)
+
+        return True
 
 # --------------------------------------------------------------------------------------------------
 
@@ -174,6 +238,7 @@ class TelloBridgeNode(Node):
             
         except Exception as e:
             self.get_logger().error(f'Error in poseCallback: {e}')
+            
 
 # --------------------------------------------------------------------------------------------------
 
@@ -273,6 +338,12 @@ class TelloBridgeNode(Node):
         logger_msg = f'Velocity command received via ROS Teleop. node: vx={vx} m/s, vy={vy} m/s, vz={vz} m/s, va={vx} rad/s'
         self.get_logger().info(logger_msg)
         self.tello.send_rc_control(int(vy*100), int(vx*100), int(-vz*100),0)#, int(va*100))
+
+# --------------------------------------------------------------------------------------------------
+
+    def teleopActiveCallback(self, msg):
+        # Is set True if teleop node i running
+        self._teleop_active = msg
 
 # --------------------------------------------------------------------------------------------------
 

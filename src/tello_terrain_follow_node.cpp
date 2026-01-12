@@ -12,7 +12,7 @@ TerrainFollow::TerrainFollow() : Node("tello_terrain_follow_node")
     this->declare_parameter("min_vel", -1.0);
     this->declare_parameter("max_vel", 1.0);
     this->declare_parameter("rel_alt_topic", "");
-    this->declare_parameter("vertical_cmd_vel_topic", "");
+    this->declare_parameter("cmd_vel", "");
 
     _target_alt = this->get_parameter("target_distance").as_double();
     _kp = this->get_parameter("kp").as_double();
@@ -21,7 +21,7 @@ TerrainFollow::TerrainFollow() : Node("tello_terrain_follow_node")
     _min_vel = this->get_parameter("min_vel").as_double();
     _max_vel = this->get_parameter("max_vel").as_double();
     _rel_alt_topic = this->get_parameter("rel_alt_topic").as_string();
-    _vert_cmd_vel_topic = this->get_parameter("vertical_cmd_vel_topic").as_string();
+    _vert_cmd_vel_topic = this->get_parameter("cmd_vel").as_string();
    
 
     // Declare Subscribers

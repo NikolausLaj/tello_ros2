@@ -13,3 +13,4 @@ tello_bridge_node:
     average_time: 3.0
     average_rate: 20.0
     filter_barometer: True
+    tello_wifi: "TELLO-C571AE"

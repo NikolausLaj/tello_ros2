@@ -7,4 +7,4 @@ tello_terrain_follow_node:
     max_vel: 1.0
     min_vel: -1.0
     rel_alt_topic:  "/tello/relative_altitude"
-    vertical_cmd_vel_topic: "/tello/vertical_cmd_vel"
+    cmd_vel: "/terrain_follow/cmd_vel"
