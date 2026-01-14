@@ -71,7 +71,8 @@ class TelloBridgeNode(Node):
         self.declare_parameter('imu_rate', 20.0)
         self.declare_parameter('pose_rate', 20.0)
         # self.declare_parameter('status_rate', 1.0)
-        self.declare_parameter('image_rate', 30.0)
+        self.declare_parameter('image_rate', 10.0)
+        self.declare_parameter('battery_rate', 0.2)
         self.declare_parameter('tf_drone', 'drone')
         self.declare_parameter('tf_base', 'base_link')
         self.declare_parameter('tf_odom', 'odom')
@@ -88,6 +89,7 @@ class TelloBridgeNode(Node):
         self.pose_rate = self.get_parameter('pose_rate').get_parameter_value().double_value
         # status_rate = self.get_parameter('status_rate').get_parameter_value().double_value
         self.image_rate = self.get_parameter('image_rate').get_parameter_value().double_value
+        self.battery_rate = self.get_parameter('battery_rate').get_parameter_value().double_value
         self.debug = self.get_parameter('debug').get_parameter_value().bool_value
         self.tf_drone = self.get_parameter('tf_drone').get_parameter_value().string_value
         self.tf_base = self.get_parameter('tf_base').get_parameter_value().string_value
@@ -100,6 +102,17 @@ class TelloBridgeNode(Node):
         self.filter_barometer = self.get_parameter('filter_barometer').get_parameter_value().bool_value
         self.tello_wifi = self.get_parameter('tello_wifi').get_parameter_value().string_value
 
+        self.get_logger().info('Parameters initialized.')
+        self.get_logger().info(f'Tello Wifi SSID: {self.tello_wifi}')
+        self.get_logger().info(f'IMU Rate: {self.imu_rate} Hz')
+        self.get_logger().info(f'Pose Rate: {self.pose_rate} Hz')
+        # self.get_logger().info(f'Status Rate: {status_rate} Hz')
+        self.get_logger().info(f'Image Rate: {self.image_rate} Hz')
+        self.get_logger().info(f'Battery Rate: {self.battery_rate} Hz')
+        self.get_logger().info(f'Debug Mode: {self.debug}')
+        self.get_logger().info(f'Barometer Filter: {self.filter_barometer}')
+
+
 # --------------------------------------------------------------------------------------------------
 
     def _initTimers(self):
@@ -107,6 +120,7 @@ class TelloBridgeNode(Node):
         self.pose_request_timer = self.create_timer(1.0/self.pose_rate, self.altitudeCallback)
         # self.status_request_timer = self.create_timer(1.0/status_rate, self.statusCallback)
         self.image_request_timer = self.create_timer(1.0/self.image_rate, self.imageCallback)
+        self.battery_request_timer = self.create_timer(1.0/self.battery_rate, self.batteryCallback)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -148,6 +162,7 @@ class TelloBridgeNode(Node):
             return 0.0
 
 # --------------------------------------------------------------------------------------------------
+
     def _startVideoStream(self):
         try:
             self.tello.streamon()
@@ -195,7 +210,7 @@ class TelloBridgeNode(Node):
             )
             ssids = result.stdout.splitlines()[1:]
             ssid_list = [ssid.strip() for ssid in ssids]
-            print(ssid_list)
+            
             if self.tello_wifi in ssid_list:
                 wifi_available = True
             
@@ -309,6 +324,11 @@ class TelloBridgeNode(Node):
 
 # --------------------------------------------------------------------------------------------------
 
+    def batteryCallback(self):
+        self.get_logger().info(f"Battery Status {self.tello.get_battery()}%")
+
+# --------------------------------------------------------------------------------------------------
+
     def takeoffCallback(self, msg):
         self.get_logger().info('Takeoff command received via ROS topic.')
         self.tello.takeoff()
@@ -323,21 +343,22 @@ class TelloBridgeNode(Node):
 
     def terrainFollowCallback(self, msg):
         vz = msg.linear.z*100 # to convert to cm/s
-        logger_msg = f'Vertical velocity command received via Terrain Follow Node: vz={vz} cm/s'
-        self.get_logger().info(logger_msg)
         self.tello.send_rc_control(0, 0, int(vz), 0)
 
+        if self.debug:
+            logger_msg = f'Vertical velocity command received via Terrain Follow Node: vz={vz} cm/s'
+            self.get_logger().info(logger_msg)
 # --------------------------------------------------------------------------------------------------
 
     def cmdVelCallback(self, msg):
         vx = msg.linear.x
         vy = msg.linear.y
         vz = msg.linear.z
-        # va = msg.angular
+        va = msg.angular.z
 
-        logger_msg = f'Velocity command received via ROS Teleop. node: vx={vx} m/s, vy={vy} m/s, vz={vz} m/s, va={vx} rad/s'
+        logger_msg = f'Velocity command received via ROS Teleop. node: vx={vx} m/s, vy={vy} m/s, vz={vz} m/s, va={va} rad/s'
         self.get_logger().info(logger_msg)
-        self.tello.send_rc_control(int(vy*100), int(vx*100), int(-vz*100),0)#, int(va*100))
+        self.tello.send_rc_control(int(vy*100), int(vx*100), int(-vz*100), int(va*100))
 
 # --------------------------------------------------------------------------------------------------
 

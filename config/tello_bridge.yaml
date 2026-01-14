@@ -3,6 +3,8 @@ tello_bridge_node:
     imu_rate: 20.0
     pose_rate: 20.0
     status_rate: 10.0
+    image_rate: 10.0
+    battery_rate: 0.2
     tf_drone: "drone"
     tf_base: "base_link"
     tf_odom: "odom"

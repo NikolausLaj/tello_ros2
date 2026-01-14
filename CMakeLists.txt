@@ -6,6 +6,7 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 
@@ -14,6 +15,7 @@ include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
   ${cv_bridge_INCLUDE_DIRS}
+  ${nav_msgs_INCLUDE_DIRS}
 )
 
 # Add executable for C++ node
@@ -31,6 +33,7 @@ add_executable(tello_terrain_follow src/tello_terrain_follow_node.cpp)
 ament_target_dependencies(tello_terrain_follow
   rclcpp
   sensor_msgs
+  nav_msgs
 )
 
 ament_python_install_package(${PROJECT_NAME})
